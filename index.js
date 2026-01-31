@@ -37,6 +37,10 @@ let telegramInitData = "";
 let targetUserId = "";
 let geminiApiKey = "";
 
+// Internal API Port for communication between index.js and server.js
+const INTERNAL_API_PORT = process.env.PORT || 5000;
+const INTERNAL_API_URL = `http://localhost:${INTERNAL_API_PORT}`;
+
 // Load configuration
 async function loadConfig() {
     if (process.env.BOT_CONFIG) {
@@ -240,7 +244,7 @@ async function processJobApplication(message, client) {
             // Send to server pending queue
             try {
                 const axios = require('axios'); // Ensure axios is available
-                await axios.post('http://localhost:5000/api/bot/pending', {
+                await axios.post(`${INTERNAL_API_URL}/api/bot/pending`, {
                     jobId,
                     jobDescription: fullJobDescription,
                     coverLetter: generatedCoverLetter, // Save generated letter
@@ -272,7 +276,7 @@ async function processJobApplication(message, client) {
         // Log to Server API for Dashboard
         try {
             const axios = require('axios');
-            await axios.post('http://localhost:5000/api/bot/log-application', {
+            await axios.post(`${INTERNAL_API_URL}/api/bot/log-application`, {
                 jobId,
                 jobTitle: result.jobTitle || jobTitle,
                 companyName: result.companyName,
@@ -381,10 +385,12 @@ async function processJobApplication(message, client) {
 
     try {
         console.log('🔐 Starting authentication...');
+        const isTTY = process.stdout.isTTY;
+        
         await client.start({
-            phoneNumber: async () => await input.text("Please enter your number: "),
-            password: async () => await input.text("Please enter your password: "),
-            phoneCode: async () => await input.text("Please enter the code you received: "),
+            phoneNumber: async () => isTTY ? await input.text("Please enter your number: ") : "",
+            password: async () => isTTY ? await input.text("Please enter your password: ") : "",
+            phoneCode: async () => isTTY ? await input.text("Please enter the code you received: ") : "",
             onError: (err) => console.log("Auth error:", err),
         });
 
@@ -428,7 +434,7 @@ async function processJobApplication(message, client) {
                
                // Save to DB via Server API
                const axios = require('axios');
-               await axios.post('http://localhost:5000/api/bot/update-channel-name', { channelName });
+               await axios.post(`${INTERNAL_API_URL}/api/bot/update-channel-name`, { channelName });
            }
         } catch (e) {
             console.error("⚠️  Could not fetch channel info:", e.message);
