@@ -161,6 +161,7 @@ const Dashboard = () => {
           </AreaChart>
         </ResponsiveContainer>
       </div>
+      </div>
     </div>
   );
 };
