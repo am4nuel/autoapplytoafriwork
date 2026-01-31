@@ -16,9 +16,8 @@ import Notifications from './pages/Notifications';
 import Disposal from './pages/Disposal';
 import Jobs from './pages/Jobs';
 
-const API_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:5000/api'
-  : 'https://autoapplytoafriwork-production.up.railway.app/api';
+const API_URL = 
+   'https://autoapplytoafriwork-production.up.railway.app/api';
 
 function App() {
   const [botStatus, setBotStatus] = useState({
