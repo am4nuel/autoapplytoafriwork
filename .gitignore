@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+client/node_modules/
+
+# Environment variables
+.env
+config.json
+
+# Firebase
+firebase-debug.log
+.firebase/
+serviceAccount.json
+
+# Build output
+client/dist/
+
+# System
+.DS_Store
+Thumbs.db
