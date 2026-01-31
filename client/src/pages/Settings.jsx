@@ -40,6 +40,8 @@ const EnvInput = ({ label, value, onChange, placeholder, isSensitive = false, is
   </div>
 );
 
+const API_URL = 'https://autoapplytoafriwork-production.up.railway.app/api';
+
 const Settings = () => {
   const [config, setConfig] = useState({
     autoApply: true,
@@ -80,7 +82,7 @@ const Settings = () => {
 
   const checkBotStatus = async () => {
       try {
-          const res = await axios.get('http://localhost:5000/api/bot/status');
+          const res = await axios.get(`${API_URL}/bot/status`);
           setBotStatus(prev => ({ ...prev, isRunning: res.data.isRunning, loading: false }));
       } catch (err) {
           console.error("Error checking status:", err);
@@ -91,7 +93,7 @@ const Settings = () => {
   const toggleBot = async (action) => {
       try {
           setBotStatus(prev => ({ ...prev, loading: true }));
-          const res = await axios.post('http://localhost:5000/api/bot/toggle', { action });
+          const res = await axios.post(`${API_URL}/bot/toggle`, { action });
           setBotStatus({ isRunning: res.data.isRunning, loading: false });
           alert(res.data.message);
       } catch (err) {
@@ -115,7 +117,7 @@ const Settings = () => {
     try {
       await setDoc(doc(db, 'botConfig', 'main'), config, { merge: true });
       // Trigger system restart to apply changes
-      await axios.post('http://localhost:5000/api/bot/restart');
+      await axios.post(`${API_URL}/bot/restart`);
       alert('Settings saved & System restarted!');
     } catch (error) {
        console.error(error);

@@ -4,6 +4,8 @@ import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, setDoc
 import { Check, X, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import axios from 'axios';
 
+const API_URL = 'https://autoapplytoafriwork-production.up.railway.app/api';
+
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,7 @@ const Notifications = () => {
     const finalCoverLetter = editedCoverLetters[app.id] || app.coverLetter;
 
     try {
-       await axios.post('http://localhost:5000/api/bot/manual-apply', {
+       await axios.post(`${API_URL}/bot/manual-apply`, {
            jobId: app.jobId,
            jobDescription: app.jobDescription,
            jobTitle: app.jobTitle,
