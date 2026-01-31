@@ -22,7 +22,8 @@ class AfriworkJobApplication {
         this.profiles = [];
         
         // Initialize Gemini AI
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const apiKey = this.config?.env?.geminiApiKey || process.env.GEMINI_API_KEY;
+        const genAI = new GoogleGenerativeAI(apiKey);
         // User requested gemini-3-flash-preview
         this.model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
     }

@@ -4,47 +4,69 @@ const { NewMessage } = require("telegram/events");
 const input = require("input");
 const dotenv = require("dotenv");
 const fs = require("fs");
+const { initializeApp } = require('firebase/app');
+const { getFirestore, doc, getDoc } = require('firebase/firestore');
 const AfriworkJobApplication = require("./apply");
 
 dotenv.config();
 
-const apiId = parseInt(process.env.API_ID || "0");
-const apiHash = process.env.API_HASH || "";
-const stringSession = new StringSession(process.env.SESSION || "");
+// Firebase Configuration (Same as server.js)
+const firebaseConfig = {
+  apiKey: "AIzaSyBkORDyMugXwT7Ap9lsogQQhV3X5ZWvjTY",
+  authDomain: "auto-apply-f6ac3.firebaseapp.com",
+  projectId: "auto-apply-f6ac3",
+  storageBucket: "auto-apply-f6ac3.firebasestorage.app",
+  messagingSenderId: "274176230170",
+  appId: "1:274176230170:web:d1f8dde9e0a8adae8762a3",
+  measurementId: "G-9V3WLFMTQF"
+};
 
-const channelIdRaw = process.env.CHANNEL_ID || "";
-const telegramUsername = process.env.TELEGRAM_USERNAME || "";
-const telegramInitData = process.env.TELEGRAM_INIT_DATA || "";
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
 
-// Normalize Channel ID (Telegram channels usually start with -100)
-let channelId = channelIdRaw;
-if (channelIdRaw.match(/^\d+$/) && channelIdRaw.length >= 10) {
-    channelId = `-100${channelIdRaw}`;
-}
+
+
+
+// Global configuration state
+let config = {};
+let keywords = [];
+let minimumKeywordMatches = 3;
+let channelId = "";
+let telegramUsername = "";
+let telegramInitData = "";
+let targetUserId = "";
+let geminiApiKey = "";
 
 // Load configuration
-let config;
-try {
+async function loadConfig() {
     if (process.env.BOT_CONFIG) {
-        config = JSON.parse(process.env.BOT_CONFIG);
         console.log('✅ Configuration loaded from environment');
-    } else {
-        // Fallback for standalone run without server.js (if config.json still exists temporarily)
-        // But since we are deleting it, this branch might fail or we assume server.js is always used
-        if (fs.existsSync('./config.json')) {
-            config = JSON.parse(fs.readFileSync('./config.json', 'utf-8'));
-            console.log('⚠️  Configuration loaded from config.json (Legacy Mode)');
-        } else {
-            throw new Error('No configuration found (BOT_CONFIG env var missing and config.json not found)');
-        }
+        return JSON.parse(process.env.BOT_CONFIG);
     }
-} catch (error) {
-    console.error('❌ Error loading configuration:', error.message);
-    process.exit(1);
+    
+    try {
+        console.log('📡 Fetching configuration from Firestore...');
+        const docRef = doc(db, 'botConfig', 'main');
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+            console.log('✅ Configuration loaded from Firestore');
+            return docSnap.data();
+        } else {
+            if (fs.existsSync('./config.json')) {
+                console.log('⚠️  Configuration loaded from config.json (Legacy Mode)');
+                return JSON.parse(fs.readFileSync('./config.json', 'utf-8'));
+            } else {
+                console.error('❌ No configuration found in Firestore or config.json');
+                return null;
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error loading configuration from Firestore:', error.message);
+        return null; // Don't exit yet, might have partial env vars
+    }
 }
 
-const keywords = config.keywords.map(k => k.toLowerCase());
-const minimumKeywordMatches = config.minimumKeywordMatches || 3;
 
 /**
  * Extract job ID from reply markup URL
@@ -97,9 +119,8 @@ function matchesJobKeywords(messageText) {
  */
 async function sendNotificationToUser(client, jobId, jobTitle, companyName, success, applicationId = null, errorMessage = null) {
     try {
-        const targetUserId = process.env.TARGET_USER_ID;
         if (!targetUserId) {
-            console.log('⚠️  TARGET_USER_ID not set, skipping user notification');
+            console.log('⚠️  targetUserId not set, skipping user notification');
             return;
         }
 
@@ -165,15 +186,13 @@ async function processJobApplication(message, client) {
         
         // Validate required environment variables
         if (!telegramInitData) {
-            console.error('❌ TELEGRAM_INIT_DATA not set in .env file!');
-            console.error('   Please add your Telegram init data to continue.');
+            console.error('❌ TELEGRAM_INIT_DATA not set!');
             await sendNotificationToUser(client, jobId, jobTitle, null, false, null, 'TELEGRAM_INIT_DATA not configured');
             return;
         }
         
-        if (!process.env.GEMINI_API_KEY) {
-            console.error('❌ GEMINI_API_KEY not set in .env file!');
-            console.error('   Please add your Gemini API key to continue.');
+        if (!geminiApiKey) {
+            console.error('❌ GEMINI_API_KEY not set!');
             await sendNotificationToUser(client, jobId, jobTitle, null, false, null, 'GEMINI_API_KEY not configured');
             return;
         }
@@ -311,6 +330,35 @@ async function processJobApplication(message, client) {
 }
 
 (async () => {
+    // 1. Initial Load from Firestore
+    const loadedConfig = await loadConfig();
+    if (!loadedConfig) {
+        console.error("❌ Critical Error: Could not load configuration from any source.");
+        process.exit(1);
+    }
+
+    // 2. Map global configuration from loadedConfig or process.env fallbacks
+    config = loadedConfig;
+    keywords = (config.keywords || []).map(k => k.toLowerCase());
+    minimumKeywordMatches = config.minimumKeywordMatches || 3;
+    
+    const channelIdRaw = config.env?.channelId || process.env.CHANNEL_ID || "";
+    channelId = channelIdRaw;
+    if (channelIdRaw.match(/^\d+$/) && channelIdRaw.length >= 10) {
+        channelId = `-100${channelIdRaw}`;
+    }
+
+    telegramUsername = config.env?.telegramUsername || process.env.TELEGRAM_USERNAME || "";
+    telegramInitData = config.env?.telegramInitData || process.env.TELEGRAM_INIT_DATA || "";
+    targetUserId = config.env?.targetUserId || process.env.TARGET_USER_ID || "";
+    geminiApiKey = config.env?.geminiApiKey || process.env.GEMINI_API_KEY || "";
+
+    // 3. Telegram Connection Credentials
+    const apiId = parseInt(config.env?.apiId || process.env.API_ID || "0");
+    const apiHash = config.env?.apiHash || process.env.API_HASH || "";
+    const sessionStr = config.env?.session || process.env.SESSION || "";
+    const stringSession = new StringSession(sessionStr);
+
     console.log('\n' + '='.repeat(70));
     console.log('🤖 AFRIWORK AUTO-APPLY BOT');
     console.log('='.repeat(70));
@@ -320,9 +368,16 @@ async function processJobApplication(message, client) {
     console.log(`📊 Minimum Matches Required: ${minimumKeywordMatches}`);
     console.log('='.repeat(70) + '\n');
     
+    if (apiId === 0 || !apiHash) {
+        console.error('❌ API_ID or API_HASH is missing! Please configure them in Dashboard Settings.');
+        process.exit(1);
+    }
+
     const client = new TelegramClient(stringSession, apiId, apiHash, {
         connectionRetries: 5,
     });
+
+
 
     try {
         console.log('🔐 Starting authentication...');
