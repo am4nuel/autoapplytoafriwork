@@ -4,7 +4,9 @@ import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, setDoc
 import { Check, X, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = 'https://autoapplytoafriwork-production.up.railway.app/api';
+const API_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:5000/api'
+  : 'https://autoapplytoafriwork-production.up.railway.app/api';
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);

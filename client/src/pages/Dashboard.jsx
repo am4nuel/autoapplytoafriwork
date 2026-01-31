@@ -142,7 +142,7 @@ const Dashboard = () => {
       <div className="card" style={{ height: '400px', display: 'flex', flexDirection: 'column' }}>
         <h2>Application Activity (Last 7 Days)</h2>
         <div style={{ flex: 1, minHeight: 0, width: '100%' }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <AreaChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
             <XAxis dataKey="name" stroke="#94a3b8" />
