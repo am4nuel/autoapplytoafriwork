@@ -349,6 +349,12 @@ app.use((req, res, next) => {
     next();
 });
 
-app.listen(PORT, () => {
+// Heartbeat to confirm process is alive
+setInterval(() => {
+    // console.log('💓 Server Heartbeat - Waiting for requests...');
+}, 30000);
+
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 API Server running on port ${PORT}`);
+  console.log(`👉 Health check available at: http://0.0.0.0:${PORT}/`);
 });
