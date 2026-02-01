@@ -143,7 +143,8 @@ async function sendNotificationToUser(client, jobId, jobTitle, companyName, succ
             if (errorMessage) message += `\n⚠️ **Error:** ${errorMessage}`;
         }
 
-        await client.sendMessage(targetUserId, { message });
+        // If targetUserId is the same as the bot's own ID, Telegram treats it as "Saved Messages"
+        await client.sendMessage(String(targetUserId), { message });
         console.log(`📤 Notification sent to user ${targetUserId}`);
     } catch (error) {
         console.error('Error sending notification to user:', error.message);
@@ -395,6 +396,14 @@ async function processJobApplication(message, client) {
         });
 
         console.log('✅ Connected to Telegram!');
+        const me = await client.getMe();
+        console.log(`🤖 Authenticated as: ${me.username} (ID: ${me.id})`);
+        console.log(`🎯 Target User ID: ${targetUserId}`);
+        
+        if (String(me.id) === String(targetUserId)) {
+            console.log('⚠️  NOTE: Bot ID matches Target ID. Messages will appear in "Saved Messages".');
+        }
+
         console.log('👂 Listening for new job postings...\n');
 
         // Add event handler for new messages
