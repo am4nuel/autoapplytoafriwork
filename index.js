@@ -39,7 +39,7 @@ let geminiApiKey = "";
 
 // Internal API Port for communication between index.js and server.js
 const INTERNAL_API_PORT = process.env.PORT || 5000;
-const INTERNAL_API_URL = `http://localhost:${INTERNAL_API_PORT}`;
+const INTERNAL_API_URL = `http://127.0.0.1:${INTERNAL_API_PORT}`;
 
 // Load configuration
 async function loadConfig() {
