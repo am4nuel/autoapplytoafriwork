@@ -43,7 +43,7 @@ function App() {
     };
 
     checkStatus();
-    const interval = setInterval(checkStatus, 5000); // Sync every 5s
+    const interval = setInterval(checkStatus, 1000); // Sync every 1s for snappier UI
 
     // Also fetch channel name for header
     const unsubConfig = onSnapshot(doc(db, 'botConfig', 'main'), (doc) => {
