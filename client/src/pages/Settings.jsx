@@ -119,7 +119,7 @@ const Settings = () => {
     try {
       await setDoc(doc(db, 'botConfig', 'main'), config, { merge: true });
       // Trigger system restart to apply changes
-      await axios.post(`${API_URL}/bot/restart`);
+      await axios.post(`${API_URL}/bot/toggle`, { action: 'restart' });
       alert('Settings saved & System restarted!');
     } catch (error) {
        console.error(error);
