@@ -389,7 +389,12 @@ async function processJobApplication(message, client) {
         const isTTY = process.stdout.isTTY;
         
         await client.start({
-            phoneNumber: async () => isTTY ? await input.text("Please enter your number: ") : "",
+            phoneNumber: async () => {
+                if (process.stdout.isTTY) {
+                     return await input.text("Please enter your number: ");
+                }
+                throw new Error("❌ Session Missing & Non-Interactive Mode. \n   >>> Please run 'npm run login' to generate a session string first!");
+            },
             password: async () => isTTY ? await input.text("Please enter your password: ") : "",
             phoneCode: async () => isTTY ? await input.text("Please enter the code you received: ") : "",
             onError: (err) => console.log("Auth error:", err),
