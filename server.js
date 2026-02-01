@@ -24,12 +24,21 @@ const db = getFirestore(firebaseApp);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+console.log("🚀 Starting Server...");
+
 // Middleware
+const allowedOrigins = ['https://forfitonly.netlify.app', 'http://localhost:3000', 'http://localhost:5173'];
+
 app.use(cors({
-  origin: ['https://forfitonly.netlify.app', 'http://localhost:3000', 'http://localhost:5173'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    // Dynamically allow all origins for now to prevent connectivity issues
+    return callback(null, true); 
+  },
   credentials: true,
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type']
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
