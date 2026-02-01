@@ -139,9 +139,9 @@ const Dashboard = () => {
         />
       </div>
 
-      <div className="card" style={{ height: '400px' }}>
+      <div className="card" style={{ height: '400px', display: 'flex', flexDirection: 'column' }}>
         <h2>Application Activity (Last 7 Days)</h2>
-        <div style={{ width: '100%', height: '300px' }}>
+        <div style={{ flex: 1, minHeight: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
