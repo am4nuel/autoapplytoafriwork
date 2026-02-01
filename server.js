@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc, deleteDoc } = require('firebase/firestore');
 const { spawn } = require('child_process');
 const path = require('path');
 require('dotenv').config();
