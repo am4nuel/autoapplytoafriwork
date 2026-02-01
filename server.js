@@ -22,6 +22,13 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
 const app = express();
+
+console.log("-----------------------------------------");
+console.log("🔍 DEBUG: Environment Variables Check");
+console.log("PORT value:", process.env.PORT || "UNDEFINED (Using default)");
+console.log("Env Keys:", Object.keys(process.env).join(", "));
+console.log("-----------------------------------------");
+
 const PORT = process.env.PORT || 8080;
 
 console.log("🚀 Starting Server...");
