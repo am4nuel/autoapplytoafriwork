@@ -17,7 +17,7 @@ import Disposal from './pages/Disposal';
 import Jobs from './pages/Jobs';
 
 const API_URL = 
-   'https://autoapplytoafriwork-production.up.railway.app/api';
+   'https://localhost:5000/api';
 
 function App() {
   const [botStatus, setBotStatus] = useState({
@@ -62,7 +62,7 @@ function App() {
 
   return (
     <Router>
-      <Layout isListening={botStatus.isListening}>
+      <Layout isListening={botStatus.isRunning}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/config" element={<Config />} />
