@@ -205,7 +205,26 @@ app.post('/api/bot/toggle', async (req, res) => {
   }
 });
 
-const AfriworkJobApplication = require('./apply');
+// Global Error Handlers to prevent crash
+process.on('uncaughtException', (err) => {
+  console.error('🔥 Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+let AfriworkJobApplication;
+try {
+    AfriworkJobApplication = require('./apply');
+    console.log("✅ Application module loaded.");
+} catch (e) {
+    console.error("⚠️ Failed to load apply.js:", e.message);
+    // Define dummy class to prevent crash on manual apply
+    AfriworkJobApplication = class {
+        async autoApply() { return { success: false, error: "System module missing" }; }
+    };
+}
 
 // ... (existing code)
 
