@@ -461,6 +461,7 @@ if __name__ == "__main__":
     if not telegram_init_data:
         # Use the example data for testing
         telegram_init_data = """user=%7B%22id%22%3A1309004964%2C%22first_name%22%3A%22Amanuel%22%2C%22last_name%22%3A%22%22%2C%22username%22%3A%22am4nuel%22%2C%22language_code%22%3A%22en%22%2C%22allows_write_to_pm%22%3Atrue%2C%22photo_url%22%3A%22https%3A%5C%2F%5C%2Ft.me%5C%2Fi%5C%2Fuserpic%5C%2F320%5C%2FqjAqa5aQK3kXfZ7-GDCnl_uuBYiQ-OP2O74hg0ZjVUc.svg%22%7D&chat_instance=4664664791405989786&chat_type=channel&start_param=1da3bfc7-f753-4064-9c2d-0d1af77073d6&auth_date=1769881656&signature=R4lqEgSxL9iTYRog9uqYDtIWcSOf6-1dkoTcikCCdlX1hMD3k5EOWYS9nq3iIFDqYUoUK_l2HSF8QRNhbnFxDw&hash=b787989a534b5da78b7463c9f219c8d399914208c3e92a5fa5f3f73f320a4806"""
+        
         print(f"\nUsing example Telegram data (ID: 1309004964)")
     
     # Create application bot instance

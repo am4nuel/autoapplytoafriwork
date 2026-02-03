@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "server": "node server.js",
-    "dev": "concurrently \"npm run server\" \"cd client && npm run dev\"",
+    "dev": "npm run server",
     "login": "node login.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
