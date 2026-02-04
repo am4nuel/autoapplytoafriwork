@@ -1,4 +1,4 @@
-export const isDev = false;
+export const isDev = true;
 
 export const API_URL = isDev
   ? 'http://localhost:5000/api'

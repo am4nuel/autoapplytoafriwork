@@ -5,7 +5,7 @@ const input = require("input");
 const dotenv = require("dotenv");
 const fs = require("fs");
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc, collection } = require('firebase/firestore');
 const AfriworkJobApplication = require("./apply");
 
 dotenv.config();
@@ -40,6 +40,40 @@ let geminiApiKey = "";
 // Internal API Port for communication between index.js and server.js
 const INTERNAL_API_PORT = process.env.PORT || 5000;
 const INTERNAL_API_URL = `http://127.0.0.1:${INTERNAL_API_PORT}`;
+
+/**
+ * Log activity to Firestore and Console
+ */
+async function logActivity(type, message, details = {}) {
+    const timestamp = new Date().toISOString();
+    const date = new Date(timestamp).toLocaleString();
+    
+    // Console log with style
+    const icon = {
+        'info': 'ℹ️',
+        'success': '✅',
+        'warning': '⚠️',
+        'error': '❌',
+        'bot': '🤖',
+        'channel': '📨',
+        'apply': '🎯'
+    }[type] || '📝';
+    
+    console.log(`${icon} [${date}] ${message}`);
+
+    try {
+        const logRef = doc(collection(db, 'botActivity'));
+        await setDoc(logRef, {
+            type,
+            message,
+            details,
+            timestamp,
+            date
+        });
+    } catch (err) {
+        console.error('⚠️ Failed to log activity to Firestore:', err.message);
+    }
+}
 
 // Load configuration
 async function loadConfig() {
@@ -172,16 +206,19 @@ async function processJobApplication(message, client) {
         const messageText = message.message || '';
         const keywordCheck = matchesJobKeywords(messageText);
         
-        console.log(`\n🔍 Keyword Analysis:`);
-        console.log(`   Found ${keywordCheck.count} matching keywords: ${keywordCheck.foundKeywords.join(', ')}`);
-        console.log(`   Required: ${minimumKeywordMatches} keywords`);
+        await logActivity('info', `Analyzed keywords for Job ${jobId}`, {
+            found: keywordCheck.foundKeywords,
+            count: keywordCheck.count,
+            required: minimumKeywordMatches,
+            matches: keywordCheck.matches
+        });
         
         if (!keywordCheck.matches) {
-            console.log(`❌ Not enough keyword matches, skipping application.`);
+            await logActivity('warning', `Skipping Job ${jobId}: Not enough keyword matches.`);
             return;
         }
         
-        console.log(`✅ Keyword threshold met! Proceeding with application...`);
+        await logActivity('apply', `Keyword threshold met! Processing Job: ${jobId}`);
         
         // Extract job description from message
         const jobDescription = messageText.substring(0, 1000); // Limit to 1000 chars
@@ -208,9 +245,9 @@ async function processJobApplication(message, client) {
         
         if (config.autoApply === false || isTestId) { 
             if (isTestId) {
-                console.log(`⚠️  Job ID missing (TEST-ID generated). Forcing Manual Approval.`);
+                await logActivity('info', `Job ID missing (TEST-ID). Forcing Manual Approval for: ${jobId}`);
             } else {
-                console.log(`⚠️  Auto-apply is OFF. Generating cover letter and queuing for approval...`);
+                await logActivity('info', `Auto-apply is OFF. Queuing for manual approval: ${jobTitle}`);
             }
             
             const bot = new AfriworkJobApplication(telegramInitData, config);
@@ -263,14 +300,15 @@ async function processJobApplication(message, client) {
                     null,
                     'Requires Manual Approval (Check Dashboard)'
                 );
-                console.log(`✅ Job added to pending queue.`);
+                await logActivity('success', `Job added to pending queue: ${jobTitle}`);
             } catch (err) {
-                console.error('Failed to queue pending app:', err.message);
+                await logActivity('error', 'Failed to queue pending application', { error: err.message });
             }
             return;
         }
         
         // Create application instance and apply
+        await logActivity('apply', `Auto-applying to job: ${jobTitle}...`);
         const bot = new AfriworkJobApplication(telegramInitData, config);
         const result = await bot.autoApply(jobId, jobDescription, telegramUsername);
         
@@ -290,7 +328,7 @@ async function processJobApplication(message, client) {
         }
 
         if (result && result.success) {
-            console.log('\n🎉 Application process completed successfully!');
+            await logActivity('success', `Application successful! ID: ${result.applicationId || 'N/A'}`);
             await sendNotificationToUser(
                 client, 
                 jobId, 
@@ -300,7 +338,7 @@ async function processJobApplication(message, client) {
                 result.applicationId
             );
         } else {
-            console.log('\n⚠️  Application process encountered errors.');
+            await logActivity('warning', `Application failed: ${result?.error || 'Unknown error'}`);
             await sendNotificationToUser(
                 client, 
                 jobId, 
@@ -379,129 +417,145 @@ async function processJobApplication(message, client) {
     }
 
     const client = new TelegramClient(stringSession, apiId, apiHash, {
-        connectionRetries: 5,
+        connectionRetries: 10,
+        requestRetries: 5,
+        autoReconnect: true,
+        useOldUpdateSystem: true, // Known to be more stable for long-running bots
     });
 
-
-
-    try {
-        console.log('⏳ Waiting for previous sessions to clear (2s)...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        console.log('🔐 Starting authentication...');
-        const isTTY = process.stdout.isTTY;
-        
-        await client.start({
-            phoneNumber: async () => {
-                if (process.stdout.isTTY) {
-                     return await input.text("Please enter your number: ");
-                }
-                throw new Error("❌ Session Missing & Non-Interactive Mode. \n   >>> Please run 'npm run login' to generate a session string first!");
-            },
-            password: async () => isTTY ? await input.text("Please enter your password: ") : "",
-            phoneCode: async () => isTTY ? await input.text("Please enter the code you received: ") : "",
-            onError: (err) => console.log("Auth error:", err),
-        });
-
-        console.log('✅ Connected to Telegram!');
-        const me = await client.getMe();
-        console.log(`🤖 Authenticated as: ${me.username} (ID: ${me.id})`);
-        console.log(`🎯 Target User ID: ${targetUserId}`);
-        
-        if (String(me.id) === String(targetUserId)) {
-            console.log('⚠️  NOTE: Bot ID matches Target ID. Messages will appear in "Saved Messages".');
-        }
-
-        // Save session string to Firestore for persistence
+    let running = true;
+    while (running) {
         try {
-            const sessionString = client.session.save();
-            await setDoc(doc(db, 'botConfig', 'main'), { 
-                env: { 
-                    session: sessionString
-                } 
-            }, { merge: true });
-            console.log('✅ Session string saved to Firestore.');
-        } catch (sessionSaveError) {
-            console.error('⚠️ Failed to save session to Firestore:', sessionSaveError.message);
-        }
+            // Small delay to prevent AUTH_KEY_DUPLICATED
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
-        console.log('👂 Listening for new job postings...\n');
-
-        // Add event handler for new messages
-        client.addEventHandler(async (event) => {
-            try {
-                const message = event.message;
-                
-                // Check if message is from the target channel
-                const peerId = message.peerId;
-                const channelIdFromMessage = peerId?.channelId?.toString();
-                
-                // Log all incoming messages for debugging
-                console.log(`📨 New message in channel ${channelIdFromMessage}`);
-                
-                if (channelIdFromMessage === channelIdRaw || 
-                    channelIdFromMessage === channelId.replace('-100', '')) {
-                    
-                    console.log('✅ Message from target channel detected!');
-                    
-                    // Log all messages to Firestore
-                    try {
-                        const { setDoc, collection } = require('firebase/firestore');
-                        const logId = message.id ? String(message.id) : `log-${Date.now()}`;
-                        await setDoc(doc(db, 'channelJobLogs', logId), {
-                            messageId: message.id,
-                            text: message.message || '',
-                            date: message.date,
-                            timestamp: new Date().toISOString(),
-                            channelId: channelIdFromMessage,
-                            jobId: extractJobIdFromMessage(message),
-                            // Basic extraction for title/company if possible
-                            jobTitle: (message.message || '').split('\n')[0].replace('Job Title:', '').trim().substring(0, 100),
-                        }, { merge: true });
-                        console.log(`📝 Message ${logId} logged to channelJobLogs.`);
-                    } catch (logErr) {
-                        console.error('⚠️ Failed to log message to channelJobLogs:', logErr.message);
+            await logActivity('bot', 'Connecting to Telegram...');
+            const isTTY = process.stdout.isTTY;
+            
+            await client.start({
+                phoneNumber: async () => {
+                    if (isTTY) {
+                         return await input.text("Please enter your number: ");
                     }
+                    throw new Error("❌ Session Missing & Non-Interactive Mode. \n   >>> Please run 'npm run login' to generate a session string first!");
+                },
+                password: async () => isTTY ? await input.text("Please enter your password: ") : "",
+                phoneCode: async () => isTTY ? await input.text("Please enter the code you received: ") : "",
+                onError: (err) => logActivity('error', 'Client Start Error', { error: err.message }),
+            });
 
-                    // Process the job application (pass client for notifications)
-                    await processJobApplication(message, client);
-                } else {
-                    console.log(`⏭️  Message from different channel (${channelIdFromMessage}), ignoring...`);
-                    console.log(`   Expected: ${channelIdRaw} or ${channelId.replace('-100', '')}`);
-                }
-            } catch (error) {
-                console.error('Error handling message:', error.message);
+            await logActivity('success', 'Bot successfully connected to Telegram!');
+            const me = await client.getMe();
+            console.log(`🤖 Authenticated as: ${me.username} (ID: ${me.id})`);
+            console.log(`🎯 Target User ID: ${targetUserId}`);
+            
+            if (String(me.id) === String(targetUserId)) {
+                console.log('⚠️  NOTE: Bot ID matches Target ID. Messages will appear in "Saved Messages".');
             }
-        }, new NewMessage({}));
 
-        // Fetch and save channel info for Dashboard Header
-        try {
-           const entity = await client.getEntity(channelId);
-           if (entity) {
-               const channelName = entity.title || entity.className || 'Unknown Channel';
-               console.log(`ℹ️  Channel Name: ${channelName}`);
-               
-               // Save to DB via Server API
-               const axios = require('axios');
-               await axios.post(`${INTERNAL_API_URL}/api/bot/update-channel-name`, { channelName });
-           }
-        } catch (e) {
-            console.error("⚠️  Could not fetch channel info:", e.message);
-        }
+            // Save session string to Firestore for persistence
+            try {
+                const sessionString = client.session.save();
+                await setDoc(doc(db, 'botConfig', 'main'), { 
+                    env: { 
+                        session: sessionString
+                    } 
+                }, { merge: true });
+                await logActivity('success', 'Session string saved to Firestore.');
+            } catch (sessionSaveError) {
+                await logActivity('error', 'Failed to save session to Firestore', { error: sessionSaveError.message });
+            }
 
-        console.log('🚀 Bot is now running and monitoring for new jobs!');
-        console.log('Press Ctrl+C to stop.\n');
+            await logActivity('info', 'Bot is listening for new channel messages...');
 
-        // Keep the script running
-        await new Promise(() => {});
+            // Add event handler for new messages
+            client.addEventHandler(async (event) => {
+                try {
+                    const message = event.message;
+                    
+                    // Check if message is from the target channel
+                    const peerId = message.peerId;
+                    const channelIdFromMessage = peerId?.channelId?.toString();
+                    
+                    // Log all incoming messages for debugging
+                    console.log(`📨 New message in channel ${channelIdFromMessage}`);
+                    
+                    if (channelIdFromMessage === channelIdRaw || 
+                        channelIdFromMessage === channelId.replace('-100', '')) {
+                        
+                        await logActivity('channel', 'Message from target channel detected.');
+                        
+                        // Log all messages to Firestore
+                        try {
+                            const logId = message.id ? String(message.id) : `log-${Date.now()}`;
+                            await setDoc(doc(db, 'channelJobLogs', logId), {
+                                messageId: message.id,
+                                text: message.message || '',
+                                date: message.date,
+                                timestamp: new Date().toISOString(),
+                                channelId: channelIdFromMessage,
+                                jobId: extractJobIdFromMessage(message),
+                                // Basic extraction for title/company if possible
+                                jobTitle: (message.message || '').split('\n')[0].replace('Job Title:', '').trim().substring(0, 100),
+                            }, { merge: true });
+                        } catch (logErr) {
+                            console.error('⚠️ Failed to log message to channelJobLogs:', logErr.message);
+                        }
 
-    } catch (error) {
-        console.error("❌ Error occurred:", error);
-        console.error("Error details:", error.message);
-        try {
-            await client.disconnect();
-        } catch (disconnectError) {
-            console.error("Failed to disconnect:", disconnectError.message);
+                        // Process the job application (pass client for notifications)
+                        await processJobApplication(message, client);
+                    } else {
+                        // Optional: Log ignored messages too? User said "target chanel activty".
+                        // Let's not spam DB with other channels, but console is fine.
+                        console.log(`⏭️  Message from different channel (${channelIdFromMessage}), ignoring...`);
+                    }
+                } catch (error) {
+                    console.error('Error handling message:', error.message);
+                }
+            }, new NewMessage({}));
+
+            // Fetch and save channel info for Dashboard Header
+            try {
+               const entity = await client.getEntity(channelId);
+               if (entity) {
+                   const channelName = entity.title || entity.className || 'Unknown Channel';
+                   console.log(`ℹ️  Channel Name: ${channelName}`);
+                   
+                   // Save to DB via Server API
+                   const axios = require('axios');
+                   await axios.post(`${INTERNAL_API_URL}/api/bot/update-channel-name`, { channelName });
+               }
+            } catch (e) {
+                console.error("⚠️  Could not fetch channel info:", e.message);
+            }
+
+            console.log('🚀 Bot is now running and monitoring for new jobs!');
+            console.log('Press Ctrl+C to stop.\n');
+
+            // Keep the script running
+            await new Promise(() => {});
+
+        } catch (error) {
+            await logActivity('error', 'Bot process encountered an error', { 
+                error: error.message,
+                stack: error.stack?.substring(0, 500)
+            });
+            console.error("❌ Error occurred:", error);
+            
+            if (error.message.includes('TIMEOUT')) {
+                await logActivity('bot', 'Network timeout detected. Attempting to reconnect in 10 seconds...');
+                await new Promise(resolve => setTimeout(resolve, 10000));
+            } else {
+                // For other errors, still try to reconnect after a delay unless it's fatal
+                console.log('⏳ Attempting automatic recovery in 15 seconds...');
+                await new Promise(resolve => setTimeout(resolve, 15000));
+            }
+
+            try {
+                await client.disconnect();
+            } catch (disconnectError) {
+                console.error("Failed to disconnect:", disconnectError.message);
+            }
         }
     }
 })();
