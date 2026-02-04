@@ -56,6 +56,38 @@ app.get('/', (req, res) => {
 
 let botProcess = null;
 let isListening = false;
+let isStarting = false;
+
+/**
+ * Kill any existing bot processes on Windows
+ */
+async function killAllExistingBotProcesses() {
+    return new Promise((resolve) => {
+        if (process.platform === 'win32') {
+            const { exec } = require('child_process');
+            // taskkill /F /IM node.exe /FI "WINDOWTITLE eq AFRIWORK_BOT*" 
+            // Better to kill by pattern if possible, but let's try to find node processes with index.js
+            exec('wmic process where "commandline like \'%index.js%\'" get processid', (err, stdout) => {
+                if (stdout) {
+                    const pids = stdout.split('\n')
+                        .map(line => line.trim())
+                        .filter(line => /^\d+$/.test(line))
+                        .map(line => parseInt(line));
+                    
+                    if (pids.length > 0) {
+                        console.log(`🔍 Found ${pids.length} orphaned bot processes. Killing...`);
+                        pids.forEach(pid => {
+                            try { process.kill(pid, 'SIGKILL'); } catch (e) {}
+                        });
+                    }
+                }
+                resolve();
+            });
+        } else {
+            resolve();
+        }
+    });
+}
 
 // API Routes
 
@@ -88,45 +120,68 @@ app.post('/api/bot/toggle', async (req, res) => {
 
   try {
     if (action === 'start') {
-      if (!botProcess) {
-        // Fetch config to pass as env vars
-        const config = await getConfig();
-        if (!config) {
-            throw new Error('Configuration not found in Database');
+      if (!botProcess && !isStarting) {
+        isStarting = true;
+        try {
+            // Fetch config to pass as env vars
+            const config = await getConfig();
+            if (!config) {
+                isStarting = false;
+                throw new Error('Configuration not found in Database');
+            }
+
+            // Clean up any leaked processes first
+            await killAllExistingBotProcesses();
+
+            // Map Firestore camelCase config to UPPERCASE env vars for index.js
+            const mappedEnv = {
+                API_ID: config.env?.apiId || process.env.API_ID,
+                API_HASH: config.env?.apiHash || process.env.API_HASH,
+                SESSION: config.env?.session || process.env.SESSION,
+                CHANNEL_ID: config.env?.channelId || process.env.CHANNEL_ID,
+                TELEGRAM_USERNAME: config.env?.telegramUsername || process.env.TELEGRAM_USERNAME,
+                TELEGRAM_INIT_DATA: config.env?.telegramInitData || process.env.TELEGRAM_INIT_DATA,
+                GEMINI_API_KEY: config.env?.geminiApiKey || process.env.GEMINI_API_KEY,
+                TARGET_USER_ID: config.env?.targetUserId || process.env.TARGET_USER_ID,
+            };
+
+            const env = { 
+                ...process.env,
+                ...mappedEnv, 
+                BOT_CONFIG: JSON.stringify(config) 
+            };
+
+            // Start the bot process
+            botProcess = spawn('node', ['index.js'], {
+              cwd: path.join(__dirname),
+              stdio: 'inherit',
+              env: env
+            });
+
+            botProcess.on('spawn', () => {
+              isStarting = false;
+              isListening = true;
+              console.log('✅ Bot process spawned successfully.');
+            });
+
+            botProcess.on('exit', (code) => {
+              console.log(`Bot process exited with code ${code}`);
+              botProcess = null;
+              isListening = false;
+              isStarting = false;
+            });
+
+            botProcess.on('error', (err) => {
+                console.error('Failed to start bot process:', err);
+                isStarting = false;
+            });
+
+        } catch (err) {
+            isStarting = false;
+            throw err;
         }
-
-        // Map Firestore camelCase config to UPPERCASE env vars for index.js
-        const mappedEnv = {
-            API_ID: config.env?.apiId || process.env.API_ID,
-            API_HASH: config.env?.apiHash || process.env.API_HASH,
-            SESSION: config.env?.session || process.env.SESSION,
-            CHANNEL_ID: config.env?.channelId || process.env.CHANNEL_ID,
-            TELEGRAM_USERNAME: config.env?.telegramUsername || process.env.TELEGRAM_USERNAME,
-            TELEGRAM_INIT_DATA: config.env?.telegramInitData || process.env.TELEGRAM_INIT_DATA,
-            GEMINI_API_KEY: config.env?.geminiApiKey || process.env.GEMINI_API_KEY,
-            TARGET_USER_ID: config.env?.targetUserId || process.env.TARGET_USER_ID,
-        };
-
-        const env = { 
-            ...process.env,
-            ...mappedEnv, 
-            BOT_CONFIG: JSON.stringify(config) 
-        };
-
-        // Start the bot process
-        botProcess = spawn('node', ['index.js'], {
-          cwd: path.join(__dirname),
-          stdio: 'inherit',
-          env: env
-        });
-
-        botProcess.on('exit', (code) => {
-          console.log(`Bot process exited with code ${code}`);
-          botProcess = null;
-          isListening = false;
-        });
-
-        isListening = true;
+      } else if (isStarting) {
+         return res.status(400).json({ success: false, message: 'Bot is already starting...' });
       } else {
         isListening = true;
       }
@@ -139,10 +194,14 @@ app.post('/api/bot/toggle', async (req, res) => {
       });
     } else if (action === 'stop') {
       if (botProcess) {
-          botProcess.kill(); 
+          botProcess.kill('SIGKILL'); 
           botProcess = null;
       }
       isListening = false;
+      isStarting = false;
+      
+      // Secondary cleanup for safety
+      await killAllExistingBotProcesses();
 
       res.json({
         success: true,

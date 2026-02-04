@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { Bell, Shield, Lock, Eye, EyeOff, Save, Power, CircleStop, RotateCcw } from 'lucide-react';
 import axios from 'axios';
+import { API_URL } from '../apiConfig';
 
 const EnvInput = ({ label, value, onChange, placeholder, isSensitive = false, isVisible, onToggle }) => (
   <div style={{ marginBottom: '1rem' }}>
@@ -40,9 +41,6 @@ const EnvInput = ({ label, value, onChange, placeholder, isSensitive = false, is
   </div>
 );
 
-const API_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:5000/api'
-  : 'https://autoapplytoafriwork-production.up.railway.app/api';
 
 const Settings = () => {
   const [config, setConfig] = useState({

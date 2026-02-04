@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { db } from './firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import axios from 'axios';
+import { API_URL } from './apiConfig';
 import './App.css';
 
 // Layout
@@ -16,9 +17,6 @@ import Notifications from './pages/Notifications';
 import Disposal from './pages/Disposal';
 import Jobs from './pages/Jobs';
 
-const API_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:5000/api'
-  : 'https://autoapplytoafriwork-production.up.railway.app/api';
 
 function App() {
   const [botStatus, setBotStatus] = useState({

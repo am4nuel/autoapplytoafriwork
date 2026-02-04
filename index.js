@@ -385,6 +385,9 @@ async function processJobApplication(message, client) {
 
 
     try {
+        console.log('⏳ Waiting for previous sessions to clear (2s)...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
         console.log('🔐 Starting authentication...');
         const isTTY = process.stdout.isTTY;
         
