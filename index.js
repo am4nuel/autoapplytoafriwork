@@ -5,7 +5,7 @@ const input = require("input");
 const dotenv = require("dotenv");
 const fs = require("fs");
 const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
 const AfriworkJobApplication = require("./apply");
 
 dotenv.config();
@@ -412,6 +412,19 @@ async function processJobApplication(message, client) {
             console.log('⚠️  NOTE: Bot ID matches Target ID. Messages will appear in "Saved Messages".');
         }
 
+        // Save session string to Firestore for persistence
+        try {
+            const sessionString = client.session.save();
+            await setDoc(doc(db, 'botConfig', 'main'), { 
+                env: { 
+                    session: sessionString
+                } 
+            }, { merge: true });
+            console.log('✅ Session string saved to Firestore.');
+        } catch (sessionSaveError) {
+            console.error('⚠️ Failed to save session to Firestore:', sessionSaveError.message);
+        }
+
         console.log('👂 Listening for new job postings...\n');
 
         // Add event handler for new messages
@@ -431,6 +444,25 @@ async function processJobApplication(message, client) {
                     
                     console.log('✅ Message from target channel detected!');
                     
+                    // Log all messages to Firestore
+                    try {
+                        const { setDoc, collection } = require('firebase/firestore');
+                        const logId = message.id ? String(message.id) : `log-${Date.now()}`;
+                        await setDoc(doc(db, 'channelJobLogs', logId), {
+                            messageId: message.id,
+                            text: message.message || '',
+                            date: message.date,
+                            timestamp: new Date().toISOString(),
+                            channelId: channelIdFromMessage,
+                            jobId: extractJobIdFromMessage(message),
+                            // Basic extraction for title/company if possible
+                            jobTitle: (message.message || '').split('\n')[0].replace('Job Title:', '').trim().substring(0, 100),
+                        }, { merge: true });
+                        console.log(`📝 Message ${logId} logged to channelJobLogs.`);
+                    } catch (logErr) {
+                        console.error('⚠️ Failed to log message to channelJobLogs:', logErr.message);
+                    }
+
                     // Process the job application (pass client for notifications)
                     await processJobApplication(message, client);
                 } else {
